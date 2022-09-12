@@ -5,6 +5,7 @@ import { MongoClient } from "mongodb";
 import joi from 'joi';
 import dayjs from 'dayjs';
 import bcrypt from "bcrypt";
+import { v4 as uuid } from 'uuid';
 
 dotenv.config();
 const app = express();
@@ -39,6 +40,12 @@ const signupSchema = joi.object({
 //Rotas de Usuários
 app.post("/signup", async (req, res) => {
 
+    const joiValidate = signupSchema.validate(req.body);
+
+    if(joiValidate) {
+        res.send(422);
+    }
+
     const { name, email, password } = req.body;
 
     const hashPassword = bcrypt.hashSync(password, 10);
@@ -47,26 +54,54 @@ app.post("/signup", async (req, res) => {
 
 });
 
-app.post("/signin", async (req, res) => {
+app.post("/login", async (req, res) => {
     const { email, password } = req.body;
 
     const user = await db.collection('users').findOne({ email });
 
-    try {
+    const passwordIsValid = bcrypt.compareSync(password, user.password)
 
-        if(!user) {
-            return res.status(404).send('Usuário ou senha incorretos');
-        }
-        if(!isValid) {
-            return res.status(404).send('Usuário ou senha incorretos');
-        }
-    
-        res.send(200);
-    } catch (error) {
-        console.error(error)
-        return res.send(500)
+
+    if(user && passwordIsValid) {
+        const token = uuid();
+
+		await db.collection("sessions").insertOne({
+			userId: user._id,
+			token
+		});
+
+        res.send(token);
+    } else {
+        res.send(404)
     }
-})
+});
 
-//Rotas de 
+//Rotas de Dados
+
+app.post("/bill", async (req, res) => {
+    const { authorization } = req.header;
+    const token = authorization?.replace('Bearer ', '');
+
+    if(!token) return res.sendStatus(401);
+
+    const session = await db.collection("sessions").findOne({ token });
+
+    if (!session) {
+        return res.sendStatus(401);
+    }
+
+    const user = await db.collection("users").findOne({ 
+		_id: session.userId 
+	});
+
+    if(user) {
+        
+    } else {
+        res.sendStatus(401);
+    }
+}) 
+
+app.post("/income")
+
+
 app.listen(5000, () => console.log("Listening on port 5000"));
