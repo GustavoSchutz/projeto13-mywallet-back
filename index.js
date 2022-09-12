@@ -79,10 +79,14 @@ app.post("/login", async (req, res) => {
 //Rotas de Dados
 
 app.post("/bill", async (req, res) => {
-    const { authorization } = req.header;
+    const { authorization } = req.headers;
     const token = authorization?.replace('Bearer ', '');
 
-    if(!token) return res.sendStatus(401);
+    const { value, description } = req.body;
+    const date = dayjs().format('DD/MM');
+    console.log(token);
+
+    if (!token) return res.sendStatus(404);
 
     const session = await db.collection("sessions").findOne({ token });
 
@@ -95,13 +99,53 @@ app.post("/bill", async (req, res) => {
 	});
 
     if(user) {
-        
+
+        await db.collection('records').insertOne({ 
+            value,
+            description,
+            date,
+            userId: user._id,
+            type: "bill"
+        });
+
+        res.sendStatus(201);
+
     } else {
         res.sendStatus(401);
     }
-}) 
+});
 
 app.post("/income")
 
+app.get("/records", async (req, res) => {
+    const { authorization } = req.headers;
+    const token = authorization?.replace('Bearer ', '');
+
+    console.log("token: ",token)
+
+    if (!token) return res.sendStatus(404);
+
+    const session = await db.collection("sessions").findOne({ token });
+
+    if (!session) {
+        return res.sendStatus(401);
+    }
+
+    const user = await db.collection("users").findOne({ 
+		_id: session.userId 
+	});
+
+    if(user) {
+
+        const userRecords = await db.collection('records').find({userId: session.userId}).toArray();
+
+        console.log("userRecords: ", userRecords.data);
+        res.send(userRecords);
+
+    } else {
+        res.sendStatus(401);
+    }
+
+})
 
 app.listen(5000, () => console.log("Listening on port 5000"));
